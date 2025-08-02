@@ -1,103 +1,335 @@
-import Image from "next/image";
+'use client';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+
+type FileItem = {
+  _id: string;
+  fileName: string;
+  fileUrl: string;
+};
+
+type PaginationProps = {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  rowsPerPage: number;
+  onRowsPerPageChange: (rows: number) => void;
+};
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [file, setFile] = useState<File | null>(null);
+  const [message, setMessage] = useState('');
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const allowedFileTypes = [
+    'application/pdf',                // PDF files
+    'application/msword',            // DOC files
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX files
+    'application/json'               // JSON files
+  ];
+  const maxFileSize = 100 * 1024 * 1024; // 100MB in bytes
+
+  const validateFile = (file: File): boolean => {
+    if (!allowedFileTypes.includes(file.type)) {
+      setMessage('Invalid file type. Please upload PDF, DOC, DOCX, or JSON files only.');
+      return false;
+    }
+
+    if (file.size > maxFileSize) {
+      setMessage('File size exceeds 100MB limit.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile && validateFile(selectedFile)) {
+      setFile(selectedFile);
+      setMessage('');
+    }
+  };
+
+  const handleSelectClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUpload = async () => {
+    try {
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage('File uploaded successfully!');
+        setFiles((prev) => [data, ...prev]);
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } else {
+        setMessage(data.error || 'Upload failed!');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setMessage('Upload failed! Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const res = await fetch('/api/upload');
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+          
+        if (data.length === 0) {
+          setMessage('There is no file uploaded');
+          setFiles([]);
+        } else {
+          setFiles(data);
+          setMessage('');
+        }
+      } catch (error) {
+        console.error('Fetch error:', error);
+        setMessage('Failed to fetch files');
+      }
+    };
+    fetchFiles();
+  }, []);
+
+  const totalPages = Math.ceil(files.length / rowsPerPage);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleRowsPerPageChange = (rows: number) => {
+    setRowsPerPage(rows);
+    setCurrentPage(1);
+  };
+
+  const handleSelectedFileDelete = () => {
+    console.log('selected file delete clicked');
+  }
+
+  const handleUploadedFileClick = (fileId: string) => {
+    console.log('Uploaded file clicked', fileId);
+    router.push(`summary/${fileId}`);
+  };
+
+  const handleUploadedFileDelete = async (fileId: string) => {
+    console.log('Uploaded file clicked', fileId);
+    // try {
+    //   const res = await fetch(`/api/upload/${fileId}`, {
+    //     method: 'DELETE',
+    //   });
+
+    //   if (res.ok) {
+    //     setFiles(files.filter(file => file._id !== fileId));
+    //     setMessage('File deleted successfully!');
+    //   } else {
+    //     setMessage('Failed to delete file');
+    //   }
+    // } catch (error) {
+    //   console.error('Delete error:', error);
+    //   setMessage('Failed to delete file');
+    // }
+  };
+
+  const Pagination: React.FC<PaginationProps> = ({ 
+    currentPage, 
+    totalPages, 
+    onPageChange, 
+    rowsPerPage, 
+    onRowsPerPageChange 
+  }) => {
+    return (
+      <div className="flex items-center gap-4 mt-4 justify-between">
+        <select 
+          value={rowsPerPage}
+          onChange={(e) => onRowsPerPageChange(Number(e.target.value))}
+          className="border rounded px-2 py-1"
+        >
+          <option value={5}>5 rows</option>
+          <option value={10}>10 rows</option>
+        </select>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border rounded disabled:opacity-50"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Previous
+          </button>
+          <span className="px-3 py-1">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border rounded disabled:opacity-50"
           >
-            Read our docs
-          </a>
+            Next
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    );
+  };
+
+  return (
+    <main className='flex flex-col items-center min-h-screen'>
+      <header className='flex h-16 p-3 border-b-2 border-gray-200 w-full items-center justify-center bg-gray-100'>
+      <h1 className="text-lg font-bold">File Upload System</h1>
+      </header>
+
+      <div className="flex flex-col items-center w-full max-w-2xl p-6">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept=".pdf,.doc,.docx,.json"
+          className="hidden"
+        />
+
+        <div className="flex flex-col gap-4">
+          <button 
+            onClick={handleSelectClick}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-lg h-12"
+          >
+            Select File
+          </button>
+
+          {/* {file && (
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                Selected: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+              </span>
+              <button
+                onClick={handleUpload}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Upload File
+              </button>
+            </div>
+          )} */}
+
+          {message && (
+            <p className={`mt-2 ${message.includes('successfully') ? 'text-green-700' : 'text-red-600'}`}>
+              {message}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-6 w-full">
+          {file && (
+            <div className="mb-4">
+              <h3 className="text-md font-semibold mb-2">Selected File</h3>
+              <table className="w-full border-collapse border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border p-2">File Name</th>
+                    <th className="border p-2">Size</th>
+                    <th className="border p-2">Type</th>
+                    <th className="border p-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border p-2">{file.name}</td>
+                    <td className="border p-2">{(file.size / (1024 * 1024)).toFixed(2)} MB</td>
+                    <td className="border p-2">{file.type.replace('application/', '')}</td>
+                    <td className="p-2 flex justify-around gap-2">{file && (
+                        <button
+                          onClick={handleUpload}
+                          className="text-blue-600 rounded hover:text-blue-800"
+                        >
+                          Upload
+                        </button>
+                      )}
+                      <button
+                        className="text-red-600 rounded hover:text-red-800"
+                        onClick={handleSelectedFileDelete}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-md font-semibold mb-2">Uploaded Files</h3>
+            <table className="w-full border-collapse border">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border p-2 text-left w-16">S.No</th>
+                  <th className="border p-2 text-left">File Name</th>
+                  <th className="border p-2 text-left w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {files
+                  .slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+                  .map((file, index) => (
+                    <tr key={file._id}>
+                      <td className="border p-2">
+                        {(currentPage - 1) * rowsPerPage + index + 1}
+                      </td>
+                      <td className="border p-2">
+                        <button
+                          onClick={() => handleUploadedFileClick(file._id)}
+                          className="text-blue-600 hover:text-blue-800 text-left w-full"
+                        >
+                          {file.fileName}
+                        </button>
+                      </td>
+                      <td className="border p-2">
+                        <button
+                          onClick={() => handleUploadedFileDelete(file._id)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+
+            {files.length > 0 ? (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(files.length / rowsPerPage)}
+                onPageChange={setCurrentPage}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(rows) => {
+                  setRowsPerPage(rows);
+                  setCurrentPage(1);
+                }}
+              />
+            ) : (
+              <p className="text-center text-gray-500 mt-4">No files uploaded yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
