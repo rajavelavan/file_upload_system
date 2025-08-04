@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
-import { OpenAI } from 'openai';
+// import { openai } from '@/lib/openai';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const s3Client = new S3Client({
@@ -11,13 +11,10 @@ const s3Client = new S3Client({
   }
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+export async function GET(request: Request, context: { params?: Promise<{ id?: string }> }) {
 
-export async function GET(request: Request, context: { params?: Promise<{ id?: string }> }
-) {
   const fileId = await context.params?.then(params => params?.id);
+
   if (!fileId) {
     return NextResponse.json({ error: 'File ID missing' }, { status: 400 });
   }
@@ -26,17 +23,39 @@ export async function GET(request: Request, context: { params?: Promise<{ id?: s
   const db = client.db();
 
   try {
+    const fileObjectId = new ObjectId(fileId);
+
     const existing = await db.collection('fileanalysis').findOne({
       fileId: new ObjectId(fileId)
     });
 
     if (existing) {
-      return NextResponse.json(existing);
+      const existingRecord = await db.collection('fileanalysis').aggregate([
+        { $match: { fileId: fileObjectId } },
+        {
+          $lookup: {
+            from: 'fileurls',
+            localField: 'fileId',
+            foreignField: '_id',
+            as: 'fileDetails'
+          }
+        },
+        { $unwind: '$fileDetails' },
+        {
+          $project: {
+            _id: 0,
+            fileId: 1,
+            summary: 1,
+            analyzedAt: 1,
+            fileName: '$fileDetails.fileName'
+          }
+        }
+      ]).toArray();
+
+      return NextResponse.json(existingRecord[0], { status: 208, statusText: 'File already analyzed' });
     }
 
-    const file = await db.collection('fileurls').findOne({
-      _id: new ObjectId(fileId)
-    });
+    const file = await db.collection('fileurls').findOne({ _id: fileObjectId });
 
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
@@ -52,31 +71,34 @@ export async function GET(request: Request, context: { params?: Promise<{ id?: s
     for await (const chunk of stream) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
-    const buffer = Buffer.concat(chunks);
-    const fileContent = buffer.toString('utf-8');
+    // const buffer = Buffer.concat(chunks);
+    // const fileContent = buffer.toString('utf-8');
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: "You are a helpful assistant that analyzes documents and provides summaries." },
-        { role: "user", content: `Please analyze this document and provide a summary: ${fileContent}` }
-      ],
-      max_tokens: 500
-    });
+    // const completion = await openai.chat.completions.create({
+    //   model: "gpt-3.5-turbo",
+    //   messages: [
+    //     { role: "system", content: "You are a helpful assistant that analyzes documents and provides summaries." },
+    //     { role: "user", content: `Please analyze this document and provide a summary: ${fileContent}` }
+    //   ],
+    //   max_tokens: 500
+    // });
 
-    const summary = completion.choices[0].message.content;
-
+    // const summary = completion.choices[0].message.content;
+    const summary = 'Api response placeholder for file analysis'; // Placeholder for actual openAI analysis logic
+    const analyzedAt = new Date();
+    
     await db.collection('fileanalysis').insertOne({
-      fileId: new ObjectId(fileId),
+      fileId: fileObjectId,
       summary,
-      analyzedAt: new Date()
+      analyzedAt
     });
 
     return NextResponse.json({
       fileId,
+      fileName: file.fileName,
       summary,
-      analyzedAt: new Date()
-    });
+      analyzedAt
+    }, { status: 200, statusText: 'File analyzed successfully' });
 
   } catch (err) {
     console.error('Analysis error:', err instanceof Error ? err.message : err);

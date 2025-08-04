@@ -4,6 +4,10 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface Analysis {
+  fileId: string;
+  status: number;
+  statusText: string;
+  fileName: string;
   summary: string;
   analyzedAt: string;
 }
@@ -19,12 +23,11 @@ export default function Summary() {
     const fetchAnalysis = async () => {
       try {
         if (!fileId || typeof fileId !== 'string') return;
-        console.log('Fetching analysis for file ID:', typeof fileId);
         const response = await fetch(`/api/analyze/${fileId}`);
-        console.log('Response:', response);
         if (!response.ok) throw new Error('Failed to fetch analysis');
         const data = await response.json();
         setAnalysis(data);
+        console.log(data);
       } catch (err) {
         setError('Failed to load file analysis');
         console.error(err);
@@ -43,21 +46,24 @@ export default function Summary() {
       </header>
 
       <div className="flex flex-col items-center w-full max-w-2xl p-6">
-        <label className="text-2xl font-bold">File Summary</label>
-        <h1 className="text-lg font-bold mb-4 text-gray-500">Extracted file: {fileId}</h1>
         {loading ? (
-          <div className="animate-pulse">Analyzing file...</div>
+          <div className="animate-pulse">{ analysis?.status === 208 ? 'Getting file summary...' : 'Analyzing File...'  }</div>
         ) : error ? (
           <div className="text-red-600">{error}</div>
         ) : analysis ? (
           <div className="space-y-4">
             <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Summary</h2>
-              <p className="text-gray-700 whitespace-pre-wrap">{analysis.summary}</p>
-              <p className="text-sm text-gray-500 mt-4">
-                Analyzed at: {new Date(analysis.analyzedAt).toLocaleString()}
-              </p>
+              <h2 className="text-xl font-semibold mb-2 flex items-center justify-around">Summary</h2>
+              <div>
+                <p className="text-gray-700 whitespace-pre-wrap">{analysis.summary}</p>
+                <div className='flex items-center justify-end'>
+                  <p className="text-sm text-gray-500 mt-4">
+                    Analyzed at: {new Date(analysis.analyzedAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
+            <label className="text-xs font-bold mt-4 text-gray-500">Analyzed File(s): {analysis.fileName}</label>
           </div>
         ) : null}
       </div>

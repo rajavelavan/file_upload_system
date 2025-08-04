@@ -19,6 +19,7 @@ type PaginationProps = {
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -55,10 +56,6 @@ export default function Home() {
     }
   };
 
-  const handleSelectClick = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleUpload = async () => {
     try {
       if (!file) return;
@@ -66,6 +63,7 @@ export default function Home() {
       const formData = new FormData();
       formData.append('file', file);
 
+      setLoading(true);
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
@@ -74,6 +72,7 @@ export default function Home() {
       const data = await res.json();
 
       if (res.ok) {
+        setLoading(false);
         setMessage('File uploaded successfully!');
         setFiles((prev) => [data, ...prev]);
         setFile(null);
@@ -90,9 +89,12 @@ export default function Home() {
   };
 
   useEffect(() => {
+    setLoading(true);
+    setMessage('Loading Exsisting Uploaded files...');
     const fetchFiles = async () => {
       try {
         const res = await fetch('/api/upload');
+        setLoading(false);
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
           
@@ -111,27 +113,27 @@ export default function Home() {
     fetchFiles();
   }, []);
 
-  const totalPages = Math.ceil(files.length / rowsPerPage);
+  // const totalPages = Math.ceil(files.length / rowsPerPage);
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  // const handlePageChange = (page: number) => {
+  //   setCurrentPage(page);
+  // };
 
-  const handleRowsPerPageChange = (rows: number) => {
-    setRowsPerPage(rows);
-    setCurrentPage(1);
-  };
+  // const handleRowsPerPageChange = (rows: number) => {
+  //   setRowsPerPage(rows);
+  //   setCurrentPage(1);
+  // };
 
   const handleSelectedFileDelete = () => {
     console.log('selected file delete clicked');
   }
 
   const handleUploadedFileClick = (fileId: string) => {
-    console.log('Uploaded file clicked', fileId);
     router.push(`summary/${fileId}`);
   };
 
   const handleUploadedFileDelete = async (fileId: string) => {
+    // setLoading(true);
     console.log('Uploaded file clicked', fileId);
     // try {
     //   const res = await fetch(`/api/upload/${fileId}`, {
@@ -139,6 +141,7 @@ export default function Home() {
     //   });
 
     //   if (res.ok) {
+    //     setLoading(false);
     //     setFiles(files.filter(file => file._id !== fileId));
     //     setMessage('File deleted successfully!');
     //   } else {
@@ -208,28 +211,14 @@ export default function Home() {
 
         <div className="flex flex-col gap-4">
           <button 
-            onClick={handleSelectClick}
+            onClick={() => fileInputRef.current?.click()}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-lg h-12"
           >
             Select File
           </button>
 
-          {/* {file && (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
-                Selected: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-              </span>
-              <button
-                onClick={handleUpload}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Upload File
-              </button>
-            </div>
-          )} */}
-
           {message && (
-            <p className={`mt-2 ${message.includes('successfully') ? 'text-green-700' : 'text-red-600'}`}>
+            <p className={`mt-2 ${ message.includes('successfully') ? 'text-green-700' : 'text-red-600' }`}>
               {message}
             </p>
           )}
@@ -258,7 +247,7 @@ export default function Home() {
                           onClick={handleUpload}
                           className="text-blue-600 rounded hover:text-blue-800"
                         >
-                          Upload
+                          { loading ? 'Uploading...' : 'Upload' }
                         </button>
                       )}
                       <button
@@ -274,46 +263,46 @@ export default function Home() {
             </div>
           )}
 
-          <div>
-            <h3 className="text-md font-semibold mb-2">Uploaded Files</h3>
-            <table className="w-full border-collapse border">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border p-2 text-left w-16">S.No</th>
-                  <th className="border p-2 text-left">File Name</th>
-                  <th className="border p-2 text-left w-24">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {files
-                  .slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
-                  .map((file, index) => (
-                    <tr key={file._id}>
-                      <td className="border p-2">
-                        {(currentPage - 1) * rowsPerPage + index + 1}
-                      </td>
-                      <td className="border p-2">
-                        <button
-                          onClick={() => handleUploadedFileClick(file._id)}
-                          className="text-blue-600 hover:text-blue-800 text-left w-full"
-                        >
-                          {file.fileName}
-                        </button>
-                      </td>
-                      <td className="border p-2">
-                        <button
-                          onClick={() => handleUploadedFileDelete(file._id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+          { files.length > 0 && (
+            <div>
+              <h3 className="text-md font-semibold mb-2">Uploaded Files</h3>
+              <table className="w-full border-collapse border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border p-2 text-left w-16">S.No</th>
+                    <th className="border p-2 text-left">File Name</th>
+                    <th className="border p-2 text-left w-24">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {files
+                    .slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+                    .map((file, index) => (
+                      <tr key={file._id}>
+                        <td className="border p-2">
+                          {(currentPage - 1) * rowsPerPage + index + 1}
+                        </td>
+                        <td className="border p-2">
+                          <button
+                            onClick={() => handleUploadedFileClick(file._id)}
+                            className="text-blue-600 hover:text-blue-800 text-left w-full"
+                          >
+                            {file.fileName}
+                          </button>
+                        </td>
+                        <td className="border p-2">
+                          <button
+                            onClick={() => handleUploadedFileDelete(file._id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
 
-            {files.length > 0 ? (
               <Pagination
                 currentPage={currentPage}
                 totalPages={Math.ceil(files.length / rowsPerPage)}
@@ -324,10 +313,8 @@ export default function Home() {
                   setCurrentPage(1);
                 }}
               />
-            ) : (
-              <p className="text-center text-gray-500 mt-4">No files uploaded yet</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </main>
