@@ -76,11 +76,11 @@ A modern, full-stack file upload and analysis system built with Next.js that all
    # AWS Configuration
    AWS_ACCESS_KEY_ID=your_access_key
    AWS_SECRET_ACCESS_KEY=your_secret_key
-   AWS_REGION=ap-south-1
+   AWS_REGION=aws_region
    AWS_S3_BUCKET_NAME=your-bucket-name
 
    # MongoDB Configuration
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
+   MONGODB_URI=your_mongodb_connection_string
 
    # OpenAI Configuration
    OPENAI_API_KEY=your_openai_api_key
