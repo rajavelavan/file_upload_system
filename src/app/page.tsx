@@ -6,6 +6,8 @@ type FileItem = {
   _id: string;
   fileName: string;
   fileUrl: string;
+  fileSize: number;
+  uploadedAt: Date;
 };
 
 type PaginationProps = {
@@ -32,7 +34,7 @@ export default function Home() {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX files
     'application/json'               // JSON files
   ];
-  const maxFileSize = 100 * 1024 * 1024; // 100MB in bytes
+  const maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 
   const validateFile = (file: File): boolean => {
     if (!allowedFileTypes.includes(file.type)) {
@@ -41,7 +43,7 @@ export default function Home() {
     }
 
     if (file.size > maxFileSize) {
-      setMessage('File size exceeds 100MB limit.');
+      setMessage('File size exceeds 10MB limit.');
       return false;
     }
 
@@ -64,7 +66,7 @@ export default function Home() {
       formData.append('file', file);
 
       setLoading(true);
-      const res = await fetch('/api/upload', {
+      const res = await fetch('/api/post-upload', {
         method: 'POST',
         body: formData,
       });
@@ -93,7 +95,7 @@ export default function Home() {
     setMessage('Loading Exsisting Uploaded files...');
     const fetchFiles = async () => {
       try {
-        const res = await fetch('/api/upload');
+        const res = await fetch('/api/get-files');
         setLoading(false);
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
@@ -153,6 +155,15 @@ export default function Home() {
     // }
   };
 
+  // Helper function to format file size
+  const formatBytes = (bytes: number, decimalPoint = 2) => { // Using decimalPoint as a parameter is helpful for customization.
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(decimalPoint)) + ' ' + sizes[i]; // Return formatted size with unit.
+  };
+
   const Pagination: React.FC<PaginationProps> = ({ 
     currentPage, 
     totalPages, 
@@ -209,13 +220,15 @@ export default function Home() {
           className="hidden"
         />
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col items-center w-full">
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-lg h-12"
           >
             Select File
           </button>
+
+          <p className='text-sm text-gray-500'>Maximum File Size 10MB.</p>
 
           {message && (
             <p className={`mt-2 ${ message.includes('successfully') ? 'text-green-700' : 'text-red-600' }`}>
@@ -231,31 +244,36 @@ export default function Home() {
               <table className="w-full border-collapse border">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="border p-2">File Name</th>
-                    <th className="border p-2">Size</th>
-                    <th className="border p-2">Type</th>
-                    <th className="border p-2">Actions</th>
+                    <th className="p-2 w-1/2">File Name</th>
+                    {/* <th className="border p-2">Size</th> */}
+                    {/* <th className="p-2">Type</th> */}
+                    <th className="p-2 w-1/2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="border p-2">{file.name}</td>
-                    <td className="border p-2">{(file.size / (1024 * 1024)).toFixed(2)} MB</td>
-                    <td className="border p-2">{file.type.replace('application/', '')}</td>
-                    <td className="p-2 flex justify-around gap-2">{file && (
-                        <button
-                          onClick={handleUpload}
-                          className="text-blue-600 rounded hover:text-blue-800"
-                        >
-                          { loading ? 'Uploading...' : 'Upload' }
-                        </button>
+                    <td className="p-2 w-1/2">
+                      <label className='flex items-center justify-center'>{file.name.replace('.*', '')}</label>
+                    </td>
+                    {/* <td className="border p-2">{(file.size / (1024 * 1024)).toFixed(2)} MB</td> */}
+                    {/* <td className="p-2">{file.type.replace('application/', '')}</td> */}
+                    <td className="p-2 w-1/2">
+                      {file && (
+                        <div className="flex items-center justify-center gap-4">
+                          <button
+                            onClick={handleUpload}
+                            className="text-blue-600 rounded hover:text-blue-800"
+                          >
+                            { loading ? 'Uploading...' : 'Upload' }
+                          </button>
+                          <button
+                            className="text-red-600 rounded hover:text-red-800"
+                            onClick={handleSelectedFileDelete}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       )}
-                      <button
-                        className="text-red-600 rounded hover:text-red-800"
-                        onClick={handleSelectedFileDelete}
-                      >
-                        Delete
-                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -271,6 +289,8 @@ export default function Home() {
                   <tr className="bg-gray-100">
                     <th className="border p-2 text-left w-16">S.No</th>
                     <th className="border p-2 text-left">File Name</th>
+                    <th className="border p-2 text-left">Size</th>
+                    <th className="border p-2 text-left">Uploded At</th>
                     <th className="border p-2 text-left w-24">Actions</th>
                   </tr>
                 </thead>
@@ -290,6 +310,9 @@ export default function Home() {
                             {file.fileName}
                           </button>
                         </td>
+                        <td className="border p-2">{formatBytes(file.fileSize)}</td>
+                        <td className="border p-2">
+                          {new Date(file.uploadedAt).toLocaleString()}</td>
                         <td className="border p-2">
                           <button
                             onClick={() => handleUploadedFileDelete(file._id)}
